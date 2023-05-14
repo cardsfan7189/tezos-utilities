@@ -13,6 +13,6 @@ while True:
         record = f.readline()
         if int(record) > 70000:
             send_msg("Dell may be running hot at {0}".format(int(record) / 1000),topic_arn)
-            return 0
+            break
     time.sleep(30)
 
