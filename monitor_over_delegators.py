@@ -15,6 +15,25 @@ def send_message(message,topic_arn):
                 Message=message,
                 Subject="Monitor Overdelegator")
 
+def load_overdelegations(s3,file_name):
+    #file_name = "C:\\users\\drewa\\downloads\\temp.txt"
+    s3.download_file('monitor-overdelegators', 'overdelegations.json', file_name)
+    fo = open(file_name,"r+")
+    line = fo.readline()
+    fo.close()
+    return json.loads(line)
+
+def load_overdelegators(overdelegations):
+    overdelegator_list = []
+
+    for overdelegation in overdelegations:
+        if overdelegation["endDate"] == None:
+            #print(overdelegation)
+            for rec in overdelegation["overDelegators"]:
+                overdelegator_list.append(rec["delegator"])
+
+    return overdelegator_list
+
 def get_last_level(s3,file_name):
     s3.download_file('monitor-overdelegators', 'last_level.txt', file_name)
     fo = open(file_name,"r+")
@@ -67,6 +86,7 @@ def find_overdelegator(prev_level,prev_staking_balance,staking_capacity,delegato
 topic_arn = "arn:aws:sns:us-east-1:917965627285:faso_toshz_check"
 s3 = boto3.client('s3')
 file_path = os.getenv("FILE_PATH")
+overdelegations_file_path = os.getenv("OVERDELEGATIONS_FILE_PATH")
 #prev_level_info = get_last_level(s3,"c:\\users\\drewa\\downloads\\last_level.txt")
 #prev_level_info = get_last_level(s3,"/tmp/last_level.txt")
 prev_level_info = get_last_level(s3,file_path)

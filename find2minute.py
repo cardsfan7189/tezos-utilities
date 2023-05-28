@@ -24,6 +24,7 @@ resp = requests.get("https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKR
 #  .9932 first full cycle on vps  533  .9936  534  .9915  535 .9928 536 .9771  537 .9888 538  .9894 539 .9936 back to vps 542 .9926 543
 data = resp.json()
 cal_time_prev = None
+print(data[0])
 for rec in data:
     #print(rec)
     cal_time = rec["timestamp"]

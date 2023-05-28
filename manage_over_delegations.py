@@ -1,17 +1,39 @@
 import requests
-import math
-from datetime import datetime
+import json
+import boto3
 
+def load_overdelegations():
+    file_name = "C:\\users\\drewa\\downloads\\temp.txt"
+    s3.download_file('monitor-overdelegators', 'overdelegations.json', file_name)
+    fo = open(file_name,"r+")
+    line = fo.readline()
+    fo.close()
+    return json.loads(line)
+
+def load_overdelegators(overdelegations):
+    overdelegator_list = []
+
+    for overdelegation in overdelegations:
+        if overdelegation["endDate"] == None:
+            #print(overdelegation)
+            for rec in overdelegation["overDelegators"]:
+                overdelegator_list.append(rec["delegator"])
+
+    return overdelegator_list
+
+s3 = boto3.client('s3')
 payor_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
 resp = requests.get("https://api.tzkt.io/v1/head")
 data = resp.json()
 current_cycle = int(data["cycle"])
 base_rewards_url = "https://api.tzkt.io/v1/rewards/bakers/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
 
-overdelegators = ['tz1TGXxNCximgsvk7T88AHLWigBkLWsTdtn9'
-                ,'tz1XowM9gCxYxbKW8SiUWSBXmwv7mnorQkFy'
-                ,'tz1eexKABYjDYhidDBGcDaQv6uzHRpMBuJiy'
-                  ,'tz1gW4pi34zmJDkbYtSgCk9VHMbbMjUh7qdm']
+overdelegations = load_overdelegations()
+#print(overdelegations)
+overdelegators = load_overdelegators(overdelegations)
+
+#overdelegators = ['tz1VF7ZigN29oQMF5qbmTEVMrrd9dAUcCQha',
+ #                 'tz1WfnAasgiPtmg5Vbt8MyhutxsjrvJXuXa3']
 
 overdelegator_dict = {}
 

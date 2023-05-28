@@ -12,7 +12,7 @@ from datetime import datetime
 #     if rec["type"] == "endorsing":
 #         slots = slots + int(rec["slots"])
 # print(slots)
-cycle="608"
+cycle="612"
 #.99745
 rightsList = []
 #base_URL = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&cycle=525&limit=8000"
@@ -66,8 +66,7 @@ print("Total slots: {0}, endorsed slots: {1}, missed slots: {2}, reliability {3}
 print("Baked blocks: {0}, Missed blocks: {1}, Future blocks: {2}".format(baked_blocks,missed_blocks,future_blocks))
 print("If no more slots missed: {0}".format(1 - (missed_slots/ (total_slots + future_slots))))
 print("Total scheduled slots for the cycle: {0}".format(total_slots + future_slots))
-
-
+exit(0)
 
 resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/delegators?limit=300")
 data = resp.json()
