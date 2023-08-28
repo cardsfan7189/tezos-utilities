@@ -2,13 +2,13 @@ import requests
 import json
 import boto3
 
-def load_overdelegations():
+def load_overdelegations(s3):
     file_name = "C:\\users\\drewa\\downloads\\temp.txt"
     s3.download_file('monitor-overdelegators', 'overdelegations.json', file_name)
     fo = open(file_name,"r+")
-    line = fo.readline()
+    overdelegations = json.load(fo)
     fo.close()
-    return json.loads(line)
+    return overdelegations
 
 def load_overdelegators(overdelegations):
     overdelegator_list = []
@@ -26,9 +26,10 @@ payor_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
 resp = requests.get("https://api.tzkt.io/v1/head")
 data = resp.json()
 current_cycle = int(data["cycle"])
+#current_cycle = 634
 base_rewards_url = "https://api.tzkt.io/v1/rewards/bakers/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
 
-overdelegations = load_overdelegations()
+overdelegations = load_overdelegations(s3)
 #print(overdelegations)
 overdelegators = load_overdelegators(overdelegations)
 
@@ -38,6 +39,7 @@ overdelegators = load_overdelegators(overdelegations)
 overdelegator_dict = {}
 
 for overdelegator in overdelegators:
+    print(overdelegator)
     resp = requests.get("https://api.tzkt.io/v1/accounts/" + overdelegator + "/operations?type=delegation&newDelegate=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6")
     delegation = resp.json()
     #print(delegation)
@@ -59,9 +61,23 @@ while resp.status_code == 200:
     temp_delegators_list = split["delegators"]
     for rec in temp_delegators_list:
         if rec["address"] in overdelegator_dict.keys():
+            print(rec)
             print(rec["address"] + "," + overdelegator_dict[rec["address"]])
 
     #print(temp_delegators_list)
     current_cycle += 1
     resp = requests.get(base_url + str(current_cycle) + "?limit=500")
-
+exit(0)
+file_name = "C:\\users\\drewa\\downloads\\temp.txt"
+fo = open(file_name,"r+")
+line = fo.readline()
+fo.close()
+over_delegations = json.loads(line)
+print(over_delegations)
+for over_delegation in over_delegations:
+    for over_delegator in over_delegation["overDelegators"]:
+        address = over_delegator["delegator"]
+        resp = requests.get("https://api.tzkt.io/v1/accounts/" + address + "/operations?type=transaction&limit=50")
+        operations = resp.json()
+        for oper in operations:
+            print("{0}: {1}, {2}".format(address,int(oper["amount"]) / 1000000,oper["timestamp"]))

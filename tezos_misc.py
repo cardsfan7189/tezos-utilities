@@ -12,7 +12,7 @@ from datetime import datetime
 #     if rec["type"] == "endorsing":
 #         slots = slots + int(rec["slots"])
 # print(slots)
-cycle="612"
+cycle="642"
 #.99745
 rightsList = []
 #base_URL = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&cycle=525&limit=8000"
@@ -66,8 +66,106 @@ print("Total slots: {0}, endorsed slots: {1}, missed slots: {2}, reliability {3}
 print("Baked blocks: {0}, Missed blocks: {1}, Future blocks: {2}".format(baked_blocks,missed_blocks,future_blocks))
 print("If no more slots missed: {0}".format(1 - (missed_slots/ (total_slots + future_slots))))
 print("Total scheduled slots for the cycle: {0}".format(total_slots + future_slots))
+#base_url = "https://api.tzkt.io/v1/rights?baker=tz1dbfppLAAxXZNtf2SDps7rch3qfUznKSoK&status=realized&type=baking&limit=500&cycle="
+base_url = "https://api.tzkt.io/v1/rights?baker=tz1Kf25fX1VdmYGSEzwFy1wNmkbSEZ2V83sY&status=realized&type=baking&limit=500&cycle="
+starting_cycle = 634
+total_blocks = 0
+total_missed_successor_blocks = 0
+
+while starting_cycle <= 643:
+    resp = requests.get(base_url + str(starting_cycle))
+    data = resp.json()
+    for rec in data:
+        total_blocks += 1
+        block_resp = requests.get("https://api.tzkt.io/v1/blocks/" + str(rec["level"] +1))
+        block_info = block_resp.json()
+        if block_info["proposer"]["address"] != block_info["producer"]["address"] or block_info["payloadRound"] > 0 or block_info["blockRound"] > 0:
+            missed_baker_address = "none"
+            total_missed_successor_blocks += 1
+            missed_baker_resp = requests.get("https://api.tzkt.io/v1/rights?type=baking&status=missed&level=" + str(block_info["level"]))
+            missed_baker_info = missed_baker_resp.json()
+            if len(missed_baker_info) > 0:
+                missed_baker_address = missed_baker_info[0]["baker"]["address"]
+
+            print("Block time {0}, level {1}, block proposer: {2}, block producer: {3}, payload round: {4}, block round: {5}, baker who missed: {6}".format(
+            block_info["timestamp"],block_info["level"],block_info["proposer"]["address"],block_info["producer"]["address"]
+                ,block_info["payloadRound"],block_info["blockRound"],missed_baker_address
+             ))
+
+    starting_cycle += 1
+print("*****Total blocks: {0}, total missed successor blocks {1}, percentage missed {2}".format(total_blocks,total_missed_successor_blocks,total_missed_successor_blocks/total_blocks))
+exit(0)
+base_url = "https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
+delegators_list = {}
+resp = requests.get(base_url + "641" + "?limit=500")
+split = resp.json()
+print(split)
+temp_delegators_list = split["delegators"]
+active_stake = split["activeStake"]
+staking_balance = split["stakingBalance"]
+delegator_balance = 0
+for rec in temp_delegators_list:
+    if rec["address"] == "tz1ZLEhySrTcVhMvwJH5KPpSb6qmgmz5hVwY":
+        print(rec)
+        delegator_balance = rec["balance"]
+print(delegator_balance - (staking_balance - active_stake))
+exit(0)
+resp = requests.get("https://api.tzkt.io/v1/delegates?active=true&limit=10000&sort=activationLevel")
+data = resp.json()
+for rec in data:
+    if "alias" in rec:
+        alias = rec["alias"]
+    else:
+        alias = "none"
+
+    print("{0},alias: {1},activation time: {2}, {3}".format(rec["address"],alias,rec["activationTime"],rec["balance"]))
+
 exit(0)
 
+
+base_url = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&status=missed&limit=500&cycle="
+starting_cycle = 634
+
+while starting_cycle <= 640:
+    resp = requests.get(base_url + str(starting_cycle))
+    data = resp.json()
+    for rec in data:
+        previous_level = rec["level"] - 1
+        block_resp = requests.get("https://api.tzkt.io/v1/blocks/" + str(previous_level))
+        block_info = block_resp.json()
+        print("Missed endorsement at level {0},{1}, prior level proposer {2}, producer {3}".format(rec["level"],rec["timestamp"],block_info["proposer"]["address"],block_info["producer"]["address"]))
+    starting_cycle += 1
+
+exit(0)
+
+
+
+base_url = "https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
+delegators_list = {}
+resp = requests.get(base_url + "641" + "?limit=500")
+split = resp.json()
+print(split)
+temp_delegators_list = split["delegators"]
+active_stake = split["activeStake"]
+staking_balance = split["stakingBalance"]
+delegator_balance = 0
+for rec in temp_delegators_list:
+    if rec["address"] == "tz1ZLEhySrTcVhMvwJH5KPpSb6qmgmz5hVwY":
+        print(rec)
+        delegator_balance = rec["balance"]
+print(delegator_balance - (staking_balance - active_stake))
+exit(0)
+resp = requests.get("https://api.tzkt.io/v1/delegates?active=true&limit=10000&sort=activationLevel")
+data = resp.json()
+for rec in data:
+    if "alias" in rec:
+        alias = rec["alias"]
+    else:
+        alias = "none"
+
+    print("{0},alias: {1},activation time: {2}, {3}".format(rec["address"],alias,rec["activationTime"],rec["balance"]))
+
+exit(0)
 resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/delegators?limit=300")
 data = resp.json()
 total_balances = 0

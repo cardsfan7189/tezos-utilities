@@ -19,9 +19,9 @@ def load_overdelegations(s3,file_name):
     #file_name = "C:\\users\\drewa\\downloads\\temp.txt"
     s3.download_file('monitor-overdelegators', 'overdelegations.json', file_name)
     fo = open(file_name,"r+")
-    line = fo.readline()
+    overdelegations = json.load(fo)
     fo.close()
-    return json.loads(line)
+    return overdelegations
 
 def load_overdelegators(overdelegations):
     overdelegator_list = []
@@ -68,7 +68,7 @@ def find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegat
                     elif (oper["type"] == "transaction" and oper["sender"]["address"] == rec["address"]) or (oper["type"] == "delegation" and oper["prevDelegate"]["alias"] == "Tez Nebraska"):
                         amt = str(oper["amount"] * -1)
                         type = oper["type"]
-                    delegator_list.append(str(oper["level"]) + "|" + rec["address"] + "|" + amt + "|" + type + "|" + str(rec["delegationLevel"]) + "|" + rec["delegationTime"])
+                    delegator_list.append(str(oper["level"]) + "|" + rec["address"] + "|" + amt + "|" + type + "|" + str(rec["delegationLevel"]) + "|" + rec["delegationTime"] + "|" + oper["timestamp"])
 
     delegator_list.sort()
 
@@ -84,12 +84,23 @@ def find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegat
         oper_type = temp_list[3]
         del_level = int(temp_list[4])
         del_date = temp_list[5]
+        trans_level = temp_list[0]
+        trans_date = temp_list[6]
         prev_staking_balance += amount
         if prev_staking_balance > staking_capacity:
+            if oper_type == "delegation":
+                over_delegation_date = del_date
+                over_delegation_level = del_level
+            else:
+                over_delegation_date = trans_date
+                over_delegation_level = trans_level
             over_delegator = {
                 "delegator" : address,
-                "delgationDate" : del_date,
-                "delegationLevel" : del_level
+                "delegationDate" : del_date,
+                "delegationLevel" : del_level,
+                "overDelegationType" : oper_type,
+                "overDelegationDate" : over_delegation_date,
+                "overDelegationLevel" : over_delegation_level
             }
             if overdelegation_triggered == False:
                 overdelegation_triggered = True
@@ -108,13 +119,14 @@ def build_report(result):
     report_str = "New overdelegators:\n{0}".format(temp)
     return report_str
 
-def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,overdelegation_end_date,overdelegation_end_level,flag):
+def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,overdelegation_end_date,overdelegation_end_level,overdelegation_end_cycle,flag):
     if flag == "New":
         newOverDelegation = {
-            "startDate" : result[0]["delegationDate"],
-            "startLevel" : result[0]["delegationLevel"],
+            "startDate" : result[0]["overDelegationDate"],
+            "startLevel" : result[0]["overDelegationLevel"],
             "endDate" : None,
             "endLevel" : None,
+            "endCycle" : None,
             "overDelegators" : result
         }
         overdelegations.append(newOverDelegation)
@@ -126,14 +138,16 @@ def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_p
         array_length = len(overdelegations)
         overdelegations[array_length - 1]["endDate"] = overdelegation_end_date
         overdelegations[array_length - 1]["endLevel"] = overdelegation_end_level
+        overdelegations[array_length - 1]["endCycle"] = overdelegation_end_cycle
 
     with open(overdelegations_file_path,"w") as outfile:
-        json_dump = json.dumps(overdelegations)
+        json_dump = json.dumps(overdelegations,indent=4)
         outfile.write(json_dump)
         outfile.flush()
         outfile.close()
 
-    response = s3.upload_file(overdelegations_file_path, "monitor-overdelegators", "overdelegations.json")
+    s3.upload_file(overdelegations_file_path, "monitor-overdelegators", "overdelegations.json")
+    s3.upload_file(overdelegations_file_path, "teznebraska", "overdelegations.json")
 
 topic_arn = "arn:aws:sns:us-east-1:917965627285:faso_toshz_check"
 s3 = boto3.client('s3')
@@ -155,6 +169,8 @@ resp = requests.get("https://api.tzkt.io/v1/head")
 data = resp.json()
 current_level = data["level"]
 current_timestamp = data["timestamp"]
+current_cycle = data["cycle"]
+
 resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/operations?type=set_deposits_limit")
 data = resp.json()
 rec = data[0]
@@ -182,13 +198,13 @@ if staking_balance > staking_capacity:
             flag = "New"
         else:
             flag = "Update"
-        update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,None,None,flag)
+        update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,None,None,None,flag)
 
     #update_last_level(s3,"c:\\users\\drewa\\downloads\\last_level.txt",current_level,"Overdelegated",staking_balance)
     update_last_level(s3,file_path,current_level,"Overdelegated",staking_balance)
 else:
     if prev_status == "Overdelegated":
-        update_overdelegations_file(s3,None,overdelegations,overdelegations_file_path,current_timestamp,current_level,"Close")
+        update_overdelegations_file(s3,None,overdelegations,overdelegations_file_path,current_timestamp,current_level,current_cycle,"Close")
     #exit(0)
     #update_last_level(s3,"c:\\users\\drewa\\downloads\\last_level.txt",current_level,prev_status,staking_balance)
     update_last_level(s3,file_path,current_level,"Not Overdelegated",staking_balance)

@@ -32,28 +32,42 @@ def lambda_handler(event,context):
 
 def process(starting_cycle,save_starting_cycle,file_name):
     report = ""
-    base_URL = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&limit=8000&cycle="
+    rights_list = []
+    base_URL = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&limit=10000&cycle="
     resp = requests.get(base_URL + str(starting_cycle))
     data = resp.json()
+    for item in data:
+        rights_list.append(item)
+    resp = requests.get(base_URL + str(starting_cycle) + "&offset=10000")
+    data = resp.json()
+    for item in data:
+        rights_list.append(item)
     max_cycle = starting_cycle + 9;
     while (starting_cycle < max_cycle):
-        for rec in data:
+        for rec in rights_list:
             if rec["type"] == "baking" and rec["round"] < 4 and rec["status"] == "future":
                 print(rec)
                 level_url = "https://tzkt.io/" + str(rec["level"])
                 report = report + "Baking at cycle {3}, round {0}, level {1}, at {2}\n".format(rec["round"],level_url,rec["timestamp"],rec["cycle"])
         starting_cycle = starting_cycle + 1
-        resp = requests.get(base_URL + str(starting_cycle) + "&limit=5000")
+        rights_list = []
+        resp = requests.get(base_URL + str(starting_cycle) + "&limit=10000")
         data = resp.json()
+        for item in data:
+            rights_list.append(item)
+        resp = requests.get(base_URL + str(starting_cycle) + "&limit=10000&offset=10000")
+        for item in data:
+            rights_list.append(item)
+
 
     if len(report) > 0:
         print(report)
     topic_arn = "arn:aws:sns:us-east-1:917965627285:faso_toshz_check"
-    #send_email(report,topic_arn)
+    send_email(report,topic_arn)
     update_last_cycle(s3,file_name,str(save_starting_cycle))
 
 file_name = "/tmp/last_cycle.txt"
-file_name = "C:\\Users\\DREWA\\Downloads\\last_cycle.txt"
+#file_name = "C:\\Users\\DREWA\\Downloads\\last_cycle.txt"
 s3 = boto3.client('s3')
 last_cycle = int(get_last_cycle(s3,file_name))
 print(last_cycle)
