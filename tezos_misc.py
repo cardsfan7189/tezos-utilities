@@ -12,7 +12,7 @@ from datetime import datetime
 #     if rec["type"] == "endorsing":
 #         slots = slots + int(rec["slots"])
 # print(slots)
-cycle="642"
+cycle="652"
 #.99745
 rightsList = []
 #base_URL = "https://api.tzkt.io/v1/rights?baker=tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6&cycle=525&limit=8000"
@@ -66,6 +66,48 @@ print("Total slots: {0}, endorsed slots: {1}, missed slots: {2}, reliability {3}
 print("Baked blocks: {0}, Missed blocks: {1}, Future blocks: {2}".format(baked_blocks,missed_blocks,future_blocks))
 print("If no more slots missed: {0}".format(1 - (missed_slots/ (total_slots + future_slots))))
 print("Total scheduled slots for the cycle: {0}".format(total_slots + future_slots))
+
+#resp = requests.get("https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/660/tz1ccPumDKAqecNqFmeZNbttwS5fow73vocQ")
+resp = requests.get("https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/660")
+data = resp.json()
+print(data)
+#{'balance': 400558768, 'currentBalance': 1387612535, 'emptied': False}
+#{'balance': 1296573042, 'currentBalance': 1387612535, 'emptied': False}
+exit(0)
+starting_cycle = 522
+base_url = "https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
+delegators_list = []
+
+while starting_cycle < 652:
+    resp = requests.get(base_url + str(starting_cycle) + "?limit=500")
+    split = resp.json()
+    temp_delegators_list = split["delegators"]
+    for delegator in temp_delegators_list:
+        delegators_list.append(delegator["address"])
+    starting_cycle += 1
+
+list_set = set(delegators_list)
+delegators_list_unique = list(list_set)
+total_delegator_rewards = 0
+total_fees = 0
+for delegator in delegators_list_unique:
+    resp= requests.get("https://api.tzkt.io/v1/accounts/tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j/operations?type=transaction&target=" + delegator + "&limit=1000")
+    data = resp.json()
+    for transaction in data:
+        total_delegator_rewards += transaction["amount"]
+        total_fees += transaction["bakerFee"] + transaction["storageFee"]
+print(total_delegator_rewards)
+print(total_fees
+      )
+exit(0)
+staking_balance = split["stakingBalance"]
+delegator_balance = 0
+for rec in temp_delegators_list:
+    if rec["address"] == "tz1ccPumDKAqecNqFmeZNbttwS5fow73vocQ":
+        print(rec)
+        delegator_balance = rec["balance"]
+print(delegator_balance - (staking_balance - active_stake))
+exit(0)
 #base_url = "https://api.tzkt.io/v1/rights?baker=tz1dbfppLAAxXZNtf2SDps7rch3qfUznKSoK&status=realized&type=baking&limit=500&cycle="
 base_url = "https://api.tzkt.io/v1/rights?baker=tz1Kf25fX1VdmYGSEzwFy1wNmkbSEZ2V83sY&status=realized&type=baking&limit=500&cycle="
 starting_cycle = 634
@@ -105,7 +147,7 @@ active_stake = split["activeStake"]
 staking_balance = split["stakingBalance"]
 delegator_balance = 0
 for rec in temp_delegators_list:
-    if rec["address"] == "tz1ZLEhySrTcVhMvwJH5KPpSb6qmgmz5hVwY":
+    if rec["address"] == "tz1ccPumDKAqecNqFmeZNbttwS5fow73vocQ":
         print(rec)
         delegator_balance = rec["balance"]
 print(delegator_balance - (staking_balance - active_stake))

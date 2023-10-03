@@ -15,9 +15,9 @@ def send_message(message,topic_arn):
                 Message=message,
                 Subject="Monitor Overdelegator")
 
-def load_overdelegations(s3,file_name,file_path):
+def load_overdelegations(s3,file_name):
     #file_name = "C:\\users\\drewa\\downloads\\temp.txt"
-    s3.download_file('monitor-overdelegators', file_name, file_path)
+    #s3.download_file('monitor-overdelegators', 'overdelegations.json', file_name)
     fo = open(file_name,"r+")
     overdelegations = json.load(fo)
     fo.close()
@@ -34,12 +34,12 @@ def load_overdelegators(overdelegations):
 
     return overdelegator_list
 
-def get_last_level_cycle(s3,file_name,file_path):
-    s3.download_file('monitor-overdelegators',file_name,file_path)
+def get_last_level(s3,file_name):
+    s3.download_file('monitor-overdelegators', 'last_level.txt', file_name)
     fo = open(file_name,"r+")
     line = fo.read(64)
     fo.close()
-    return line
+    return (line)
 
 def update_last_level(s3,file_name,latest_level,flag, staking_balance):
     with open(file_name,mode="wt") as f:
@@ -47,12 +47,13 @@ def update_last_level(s3,file_name,latest_level,flag, staking_balance):
         f.flush()
         f.close()
 
-    response = s3.upload_file(file_name, "monitor-overdelegators", "last_level.txt")
+    #response = s3.upload_file(file_name, "monitor-overdelegators", "last_level.txt")
     #print(response)
 
 def find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegators):
     #https://api.tzkt.io/v1/operations/transactions?anyof.sender.target=
     new_overdelegator_list = []
+    print("prev staking balance: {0}, staking_capacity {1}".format(prev_staking_balance,staking_capacity))
     delegator_list = []
     for rec in delegators:
         #print(rec["address"])
@@ -60,7 +61,6 @@ def find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegat
         operations = resp.json()
         for oper in operations:
             if int(oper["level"]) > int(prev_level):
-                amt = 0
                 if int(oper["amount"]) != 0:
                     if (oper["type"] == "transaction" and oper["target"]["address"] == rec["address"]) or (oper["type"] == "delegation" and oper["newDelegate"]["alias"] == "Tez Nebraska"):
                         amt = str(oper["amount"])
@@ -88,6 +88,7 @@ def find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegat
         trans_level = temp_list[0]
         trans_date = temp_list[6]
         prev_staking_balance += amount
+        print("{0},{1},{2},{3}".format(address,oper_type,amount,prev_staking_balance))
         if prev_staking_balance > staking_capacity:
             if oper_type == "delegation":
                 over_delegation_date = del_date
@@ -120,13 +121,6 @@ def build_report(result):
     report_str = "New overdelegators:\n{0}".format(temp)
     return report_str
 
-def reconcile_perm_overdelegation_list(s3,temp_overdelegations,overdelegations,data,prev_cycle_status,prev_cycle,prev_cycle_snapshot_level):
-    print("in reconcile perm overdelegation list")
-    return overdelegations
-
-def close_perm_overdelegations(overdelegations):
-    print("in close perm over delegations")
-    return overdelegations
 def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,overdelegation_end_date,overdelegation_end_level,overdelegation_end_cycle,flag):
     if flag == "New":
         newOverDelegation = {
@@ -154,32 +148,13 @@ def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_p
         outfile.flush()
         outfile.close()
 
-    s3.upload_file(overdelegations_file_path, "monitor-overdelegators", "overdelegations.json")
-    s3.upload_file(overdelegations_file_path, "teznebraska", "overdelegations.json")
+    #s3.upload_file(overdelegations_file_path, "monitor-overdelegators", "overdelegations.json")
+    #s3.upload_file(overdelegations_file_path, "teznebraska", "overdelegations.json")
 
 topic_arn = "arn:aws:sns:us-east-1:917965627285:faso_toshz_check"
 s3 = boto3.client('s3')
-last_level_file_path = os.getenv("LAST_LEVEL_FILE_PATH")
-last_cycle_file_path = os.getenv("LAST_CYCLE_FILE_PATH")
+file_path = os.getenv("FILE_PATH")
 overdelegations_file_path = os.getenv("OVERDELEGATIONS_FILE_PATH")
-temp_overdelegations_file_path = os.getenv("TEMP_OVERDELEGATIONS_FILE_PATH")
-
-temp_overdelegations = load_overdelegations(s3,"temp_overdelegations.json",temp_overdelegations_file_path)
-temp_overdelegators = load_overdelegators(temp_overdelegations)
-
-prev_level_info = get_last_level_cycle(s3,"last_level.txt",last_level_file_path)
-print(prev_level_info)
-temp_list = prev_level_info.split(',')
-prev_level = temp_list[0]
-prev_status = temp_list[1]
-prev_staking_balance = int(temp_list[2])
-
-prev_cycle_info = get_last_level_cycle(s3,"last_cycle.txt",last_cycle_file_path)
-print(prev_cycle_info)
-temp_list = prev_cycle_info.split(',')
-prev_cycle = temp_list[0]
-prev_cycle_snapshot_level = temp_list[1]
-prev_cycle_status = temp_list[2]
 
 resp = requests.get("https://api.tzkt.io/v1/head")
 data = resp.json()
@@ -187,51 +162,28 @@ current_level = data["level"]
 current_timestamp = data["timestamp"]
 current_cycle = data["cycle"]
 
-if int(current_cycle) > int(prev_cycle):
-    overdelegations = load_overdelegations(s3,"overdelegations.json",overdelegations_file_path)
-    overdelegators = load_overdelegators(overdelegations)
-    resp = requests.get("https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/" + str(current_cycle))
-    data = resp.json()
-    if data["stakingBalance"] > data["activeStake"]:
-        updated_overdelegations = reconcile_perm_overdelegation_list(s3,temp_overdelegations,overdelegations,data,prev_cycle_status,prev_cycle,prev_cycle_snapshot_level)
-        temp_overdelegations.clear()
-    else:
-        temp_overdelegations.clear()
-        updated_overdelegations = close_perm_overdelegations(overdelegations)
-resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/operations?type=set_deposits_limit")
+resp = requests.get("https://api.tzkt.io/v1/head")
 data = resp.json()
-rec = data[0]
-frozen_deposit_limit = 10 * int(rec["limit"])
-resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6")
-data = resp.json()
-delegator_balance_limit = 10 * int(data["balance"])
-resp = requests.get("https://api.tzkt.io/v1/delegates/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6")
-data = resp.json()
+current_cycle = int(data["cycle"]) - 1
+#current_cycle = 634
+base_url = "https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
+resp = requests.get(base_url + str(current_cycle) + "?limit=500")
+prev_split = resp.json()
+current_cycle += 1
+resp = requests.get(base_url + str(current_cycle) + "?limit=500")
 
-staking_capacity = min(frozen_deposit_limit,delegator_balance_limit)
+while resp.status_code == 200:
+    split = resp.json()
 
-resp = requests.get("https://api.tzkt.io/v1/accounts/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/delegators?limit=300")
-delegators = resp.json()
+    if split["stakingBalance"] > split["activeStake"]:
+        indicator = "*** Over-delegated"
+    print("Cycle {0}, stakingBalance {1}, activeStake {2}, cycle started {3}, {4}".format(current_cycle,split["stakingBalance"],split["activeStake"],cycle_data["startTime"],indicator))
+    temp_delegators_list = split["delegators"]
+    for rec in temp_delegators_list:
+        if rec["address"] in overdelegator_dict.keys():
+            print(rec)
+            print(rec["address"] + "," + overdelegator_dict[rec["address"]])
 
-staking_balance = int(data["stakingBalance"])
-result = []
-if staking_balance > staking_capacity:
-    result = find_overdelegators(prev_level,prev_staking_balance,staking_capacity,delegators)
-    if len(result) > 0:
-        report = build_report(result)
-        #report = "{0} may be overdelegator".format(result)
-        send_message(report,topic_arn)
-        if prev_status == "Not Overdelegated":
-            flag = "New"
-        else:
-            flag = "Update"
-        update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,None,None,None,flag)
-
-    #update_last_level(s3,"c:\\users\\drewa\\downloads\\last_level.txt",current_level,"Overdelegated",staking_balance)
-    update_last_level(s3,last_level_file_path,current_level,"Overdelegated",staking_balance)
-else:
-    if prev_status == "Overdelegated":
-        update_overdelegations_file(s3,None,overdelegations,overdelegations_file_path,current_timestamp,current_level,current_cycle,"Close")
-    #exit(0)
-    #update_last_level(s3,"c:\\users\\drewa\\downloads\\last_level.txt",current_level,prev_status,staking_balance)
-    update_last_level(s3,last_level_file_path,current_level,"Not Overdelegated",staking_balance)
+    #print(temp_delegators_list)
+    current_cycle += 1
+    resp = requests.get(base_url + str(current_cycle) + "?limit=500")

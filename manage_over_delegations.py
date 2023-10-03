@@ -13,11 +13,16 @@ def load_overdelegations(s3):
 def load_overdelegators(overdelegations):
     overdelegator_list = []
 
+    length = len(overdelegations)
     for overdelegation in overdelegations:
         if overdelegation["endDate"] == None:
             #print(overdelegation)
             for rec in overdelegation["overDelegators"]:
                 overdelegator_list.append(rec["delegator"])
+
+    if len(overdelegator_list) == 0:
+        for rec in overdelegations[length-1]["overDelegators"]:
+            overdelegator_list.append(rec["delegator"])
 
     return overdelegator_list
 

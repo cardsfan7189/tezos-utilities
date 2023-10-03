@@ -68,6 +68,9 @@ cycle_counter = last_cycle - current_cycle + 1
 
 while current_cycle <= last_cycle:
     resp = requests.get(base_rewards_url + str(current_cycle))
+    if resp.status_code != 200:
+        current_cycle = current_cycle + 1
+        continue
     rewards = resp.json()
     print(rewards)
     total_delegate_rewards = total_delegate_rewards + rewards["blockRewards"] + rewards["endorsementRewards"] + rewards["blockFees"]
@@ -77,6 +80,9 @@ delegators_list = []
 current_cycle = starting_cycle
 while current_cycle <= last_cycle:
     resp = requests.get(base_url + str(current_cycle) + "?limit=500")
+    if resp.status_code != 200:
+        current_cycle = current_cycle + 1
+        continue
     split = resp.json()
     temp_delegators_list = split["delegators"]
     for delegator in temp_delegators_list:
