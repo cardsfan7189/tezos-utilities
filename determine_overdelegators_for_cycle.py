@@ -15,25 +15,6 @@ def send_message(message,topic_arn):
                 Message=message,
                 Subject="Monitor Overdelegator")
 
-def load_overdelegations(s3,file_name,file_path):
-    #file_name = "C:\\users\\drewa\\downloads\\temp.txt"
-    s3.download_file('monitor-overdelegators', file_name, file_path)
-    fo = open(file_name,"r+")
-    overdelegations = json.load(fo)
-    fo.close()
-    return overdelegations
-
-def load_overdelegators(overdelegations):
-    overdelegator_list = []
-
-    for overdelegation in overdelegations:
-        if overdelegation["endDate"] == None:
-            #print(overdelegation)
-            for rec in overdelegation["overDelegators"]:
-                overdelegator_list.append(rec["delegator"])
-
-    return overdelegator_list
-
 def get_last_level_cycle(s3,file_name,file_path):
     s3.download_file('monitor-overdelegators',file_name,file_path)
     fo = open(file_name,"r+")
@@ -97,6 +78,8 @@ def find_overdelegators(prev_level
 
     for rec in delegators:
         #print(rec["address"])
+        if rec["address"] == "tz1SSxhSAq6GYoQLaDjBEQSJsoDV7SxJnPTA":
+            print(rec["address"])
         resp = requests.get("https://api.tzkt.io/v1/accounts/" + rec["address"] + "/operations?type=delegation,transaction&limit=1000&level.gt=" + str(prev_level) + "&level.lt=" + str(curr_level))
         operations = resp.json()
         for oper in operations:
@@ -132,6 +115,7 @@ def find_overdelegators(prev_level
         prev_staking_balance += amount
         change_flag = "No change"
 
+        #print("{0} updated by {1}, {2}".format(prev_staking_balance / 1000000, address,amount/1000000))
         if prev_staking_balance > active_stake:
             if overdelegation_triggered == False:
                 change_flag = "Overdelegation triggered"
@@ -173,112 +157,76 @@ def find_overdelegators(prev_level
 
     return results
 
-
-def build_report(result):
-    temp = ""
-    for rec in result:
-        temp = temp + rec["delegator"] + "\n"
-
-    report_str = "New overdelegators:\n{0}".format(temp)
-    return report_str
-
-def reconcile_perm_overdelegation_list(s3,temp_overdelegations,overdelegations,data,prev_cycle_status,prev_cycle,prev_cycle_snapshot_level):
-    print("in reconcile perm overdelegation list")
-    return overdelegations
-
-def close_perm_overdelegations(overdelegations):
-    print("in close perm over delegations")
-    return overdelegations
-def update_overdelegations_file(s3,result,overdelegations,overdelegations_file_path,overdelegation_end_date,overdelegation_end_level,overdelegation_end_cycle,flag):
-    if flag == "New":
-        newOverDelegation = {
-            "startDate" : result[0]["overDelegationDate"],
-            "startLevel" : result[0]["overDelegationLevel"],
-            "endDate" : None,
-            "endLevel" : None,
-            "endCycle" : None,
-            "overDelegators" : result
-        }
-        overdelegations.append(newOverDelegation)
-    elif flag == "Update":
-        array_length = len(overdelegations)
-        for rec in result:
-            overdelegations[array_length - 1]["overDelegators"].append(rec)
-    elif flag == "Close":
-        array_length = len(overdelegations)
-        overdelegations[array_length - 1]["endDate"] = overdelegation_end_date
-        overdelegations[array_length - 1]["endLevel"] = overdelegation_end_level
-        overdelegations[array_length - 1]["endCycle"] = overdelegation_end_cycle
-
-    with open(overdelegations_file_path,"w") as outfile:
-        json_dump = json.dumps(overdelegations,indent=4)
-        outfile.write(json_dump)
-        outfile.flush()
-        outfile.close()
-
-    s3.upload_file(overdelegations_file_path, "monitor-overdelegators", "overdelegations.json")
-    s3.upload_file(overdelegations_file_path, "teznebraska", "overdelegations.json")
-
-topic_arn = "arn:aws:sns:us-east-1:917965627285:faso_toshz_check"
-s3 = boto3.client('s3')
-last_level_file_path = os.getenv("LAST_LEVEL_FILE_PATH")
-last_cycle_file_path = os.getenv("LAST_CYCLE_FILE_PATH")
-overdelegations_file_path = os.getenv("OVERDELEGATIONS_FILE_PATH")
-temp_overdelegations_file_path = os.getenv("TEMP_OVERDELEGATIONS_FILE_PATH")
-
 resp = requests.get("https://api.tzkt.io/v1/cycles")
 cycles = resp.json()
 last_cycle = cycles[0]["index"]
+last_cycle = 720
 prev_cycle = cycles[1]["index"]
+prev_cycle = 719
 last_snapshot_level = cycles[0]["snapshotLevel"]
+last_snapshot_level = 5264384
 prev_snapshot_level = cycles[1]["snapshotLevel"]
+prev_snapshot_level = 5235712
+out_file_name = "/home/arbest/overdelegators_" + str(last_cycle) + ".txt"
+out_file_name = "C:\\USERS\\DREWA\\DOWNLOADS\\overdelegators_" + str(last_cycle) + ".txt"
 
 resp = requests.get("https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/" + str(last_cycle) + "?limit=500")
 rewards_split = resp.json()
 
-if rewards_split["stakingBalance"] > rewards_split["activeStake"]:
+output = "Not over-delegated"
 
+if rewards_split["stakingBalance"] > rewards_split["activeStake"]:
+    output = ""
     prev_cycle_overdelegated = False
     resp = requests.get("https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/" + str(prev_cycle) + "?limit=500")
     prev_rewards_split = resp.json()
 
     if prev_rewards_split["stakingBalance"] > prev_rewards_split["activeStake"]:
         prev_cycle_overdelegated = True
+        prev_cycle_overdelegated = False
     print("Previous snapshot level: {0}, current snapshot level: {1}".format(prev_snapshot_level,last_snapshot_level))
     overdelegator_results = find_overdelegators(prev_snapshot_level
-                        ,last_snapshot_level
-                        ,prev_rewards_split["stakingBalance"]
-                        ,rewards_split["stakingBalance"]
-                        ,rewards_split["activeStake"]
-                        ,rewards_split["delegators"]
-                        ,prev_rewards_split["delegators"]
-                        ,prev_cycle_overdelegated)
+                                                ,last_snapshot_level
+                                                ,prev_rewards_split["stakingBalance"]
+                                                ,rewards_split["stakingBalance"]
+                                                ,rewards_split["activeStake"]
+                                                ,rewards_split["delegators"]
+                                                ,prev_rewards_split["delegators"]
+                                                ,prev_cycle_overdelegated)
     print(overdelegator_results)
     if len(overdelegator_results) > 1:
-        file_name = "C:\\users\\drewa\\downloads\\overdelegators_" + str(last_cycle) + ".txt"
-        with open(file_name,mode="wt") as f:
-            f.write(overdelegator_results)
-            f.flush()
-            f.close()
 
-        print(overdelegator_results)
+        #print(overdelegator_results)
         overdelegator_recs = overdelegator_results.split('\n')
         for rec in overdelegator_recs:
+            temp = None
             #rec = rec.strip()
             fields = rec.split(',')
+            if len(fields) == 1:
+                continue
             address = fields[0]
             flag = fields[1]
             prev_balance = round(float(fields[2]))
             curr_balance = round(float(fields[3]))
             if flag == "Triggered overdelegation":
                 max_balance = round(prev_balance + (rewards_split["activeStake"]/1000000) - (prev_rewards_split["stakingBalance"]/1000000))
-                print("{0} max balance: {1}".format(address,max_balance))
+                temp = "{0},max balance,{1}".format(address,max_balance)
             elif flag == "Additional overdelegator":
-                print("{0} - ignore".format(address))
+                temp = "{0},ignore".format(address)
             elif flag == "Added to overdelegation":
                 if prev_balance < 10:
-                    print("{0} - ignore".format(address))
+                    temp = "{0},ignore".format(address)
                 else:
-                    print("{0} max balance: {1}".format(address,prev_balance))
+                    temp = "{0},max balance,{1}".format(address,prev_balance)
             else:
                 print(fields)
+
+            if temp:
+                output += temp + "\n"
+
+print(output)
+with open(out_file_name,mode="wt") as f:
+    f.write(output)
+    f.flush()
+    f.close()
+
