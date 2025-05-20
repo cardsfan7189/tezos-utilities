@@ -119,6 +119,13 @@ def get_payment_amount(cycle):
 
     return total_payment
 
+def get_payout_acct_balance(address):
+    resp = requests.get("https://api-slave.tzkt.io/v1/accounts/" + address + "/balance")
+    balance = resp.json()
+    return math.floor(balance / 1000000)
+
+payout_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
+
 file_name = "/home/arbest/cycle_info.txt"
 resp = requests.get(" https://api.tzkt.io/v1/cycles")
 #resp = requests.get("https://rpc.tzkt.io/mainnet/chains/main/blocks/head")
@@ -138,6 +145,9 @@ if futuremost_cycle < int(saved_cycle_index) + 2:
         save_cycle_info("/home/arbest/cycle_info.txt",cycle_info_rec)
 elif paid_ind == "not paid":
     payment_amount = get_payment_amount(futuremost_cycle)
+    payout_account_balance = get_payout_acct_balance(payout_address)
+    if payout_account_balance < 10:
+        payment_amount -= payout_account_balance
     cycle_info_rec = "{0},{1},{2},{3}".format(futuremost_cycle,saved_pay_time,"ready to pay",payment_amount)
     save_cycle_info("/home/arbest/cycle_info.txt",cycle_info_rec)
     delay_until_waking_hours()
