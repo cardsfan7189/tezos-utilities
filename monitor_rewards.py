@@ -19,6 +19,7 @@ def load_cycle_info(s3,file_name,file_path):
     return cycle
 
 def upload_cycle_info(s3,file_name,file_path,cycle):
+    #print("path: " + file_path + " " + file_name)
     with open(file_path + file_name, 'w') as f:
         f.write(cycle)
 
@@ -34,9 +35,9 @@ def main():
     prev_cycle = 0
     file_name = "monitor_rewards_cycle.txt"
     file_path = "/tmp/"
-    file_path = "C:\\Users\\DREWA\\Downloads"
+    #file_path = "C:\\Users\\DREWA\\Downloads"
     block_len = 8  # seconds
-    curr_tezpay_delay = 608 # cycle pos  966 + 14
+    curr_tezpay_delay = 1238 # cycle pos  966 + 14
     event_sched_rate = 1800 # seconds
     buffer = 960 / 8  # number of seconds in 15 minute interval divided by seconds per level
     curr_tezpay_delay_with_padding = curr_tezpay_delay + (event_sched_rate / block_len ) + buffer
@@ -45,12 +46,12 @@ def main():
     payor_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
     resp = requests.get("https://rpc.tzkt.io/mainnet/chains/main/blocks/head")
     data = resp.json()
-    #cycle_pos = data["metadata"]["level_info"]["cycle_position"]
+    cycle_pos = data["metadata"]["level_info"]["cycle_position"]
     cycle = data["metadata"]["level_info"]["cycle"]
     last_cycle_processed = load_cycle_info(s3,file_name,file_path)
     print("Last cycle processed {0}, this cycle {1}".format(last_cycle_processed,cycle))
 
-    if last_cycle_processed == str(cycle):
+    if last_cycle_processed == str(cycle) or cycle_pos < curr_tezpay_delay_with_padding:
         return 0
 
     resp = requests.get("https://api.tzkt.io/v1/cycles/" + str(cycle))
@@ -59,7 +60,7 @@ def main():
     #level = data["metadata"]["level_info"]["level"]
     #prev_cycle = cycle - 1
     #if cycle_pos < lower_limit or cycle_pos > upper_limit:
-      #  return
+    #  return
     starting_level = firstLevel + curr_tezpay_delay_with_padding
     #overdelegators = load_overdelegators(s3,"/tmp/temp.txt")
     base_url = "https://api.tzkt.io/v1/rewards/split/tz1ffYUjwjduZkoquw8ryKRQaUjoWJviFVK6/"
