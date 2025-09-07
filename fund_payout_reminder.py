@@ -7,7 +7,7 @@ import json
 
 import os.path
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pytz
 
 def send_message(message):
@@ -15,7 +15,7 @@ def send_message(message):
     sns = boto3.client('sns')
     sns.publish(TopicArn=topic_arn,
                 Message=message,
-                Subject="Payout task")
+                Subject="[URGENT] Action needed today - Payout task")
 
 def get_start_time(level_end_time):
     #unaware_date_time = datetime.strptime(data[2]["endTime"],"%Y-%m-%dT%H:%M:%SZ")
@@ -53,7 +53,7 @@ def get_total_payments(file_name):
     summary = rewards["summary"]
     fo.close()
     total_payment = int(summary["cycle_rewards"]) + int(summary["donated_total"])
-    resp = requests.get("https://api-slave.tzkt.io/v1/accounts/tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j/balance")
+    resp = requests.get("https://api.tzkt.io/v1/accounts/tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j/balance")
     balance = resp.json()
     total_payment -= balance
     return int(total_payment / 1000000)
@@ -120,36 +120,34 @@ def get_payment_amount(cycle):
     return total_payment
 
 def get_payout_acct_balance(address):
-    resp = requests.get("https://api-slave.tzkt.io/v1/accounts/" + address + "/balance")
+    resp = requests.get("https://api.tzkt.io/v1/accounts/" + address + "/balance")
     balance = resp.json()
     return math.floor(balance / 1000000)
 
 payout_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
 
 file_name = "/home/arbest/cycle_info.txt"
-resp = requests.get(" https://api.tzkt.io/v1/cycles")
-#resp = requests.get("https://rpc.tzkt.io/mainnet/chains/main/blocks/head")
-cycles = resp.json()
-futuremost_cycle = cycles[0]["index"]
-cycle_endtime = cycles[0]["endTime"]
-saved_cycle_info = load_cycle_info(file_name)
-paid_ind = saved_cycle_info[2].replace("\n","")
-saved_pay_time = saved_cycle_info[1]
-saved_cycle_index = saved_cycle_info[0]
-#cycle_index = 850
+#file_name = "C:\\Users\\DREWA\\Downloads\\cycle_info.txt"
 
-if futuremost_cycle < int(saved_cycle_index) + 2:
-    if paid_ind == "paid":
-        start_time = get_start_time(cycle_endtime)
-        cycle_info_rec = "{0},{1},{2}".format(str(futuremost_cycle),start_time,"not paid")
-        save_cycle_info("/home/arbest/cycle_info.txt",cycle_info_rec)
-elif paid_ind == "not paid":
-    payment_amount = get_payment_amount(futuremost_cycle)
-    payout_account_balance = get_payout_acct_balance(payout_address)
-    if payout_account_balance < 10:
-        payment_amount -= payout_account_balance
-    cycle_info_rec = "{0},{1},{2},{3}".format(futuremost_cycle,saved_pay_time,"ready to pay",payment_amount)
-    save_cycle_info("/home/arbest/cycle_info.txt",cycle_info_rec)
-    delay_until_waking_hours()
-    message = "Check ledger to approve payment of {0}".format(payment_amount)
-    send_message(message)
+saved_cycle_info = load_cycle_info(file_name)
+date_fields = saved_cycle_info[1].split('-')
+prev_cycle = saved_cycle_info[0]
+past_date = date(int(date_fields[0]),int(date_fields[1]),int(date_fields[2]))
+current_date = date.today()
+delta = current_date - past_date
+if delta.days >= 4:
+    resp = requests.get("https://api.tzkt.io/v1/cycles")
+    cycles = resp.json()
+    futuremost_cycle = cycles[0]["index"]
+    if futuremost_cycle - int(prev_cycle) < 3:
+        exit(0)
+else:
+    exit(0)
+
+new_date = date.today().strftime('%Y-%m-%d')
+payment_amount = get_payment_amount(futuremost_cycle)
+payout_account_balance = get_payout_acct_balance(payout_address)
+if payout_account_balance < 10:
+    payment_amount -= payout_account_balance
+cycle_info_rec = "{0},{1},{2},{3}".format(futuremost_cycle,new_date,"ready to pay",payment_amount)
+save_cycle_info(file_name,cycle_info_rec)
