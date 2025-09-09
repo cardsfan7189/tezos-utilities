@@ -37,7 +37,7 @@ def main():
     file_path = "/tmp/"
     #file_path = "C:\\Users\\DREWA\\Downloads"
     block_len = 8  # seconds
-    curr_tezpay_delay = 1238 # cycle pos  966 + 14
+    curr_tezpay_delay = 1256 # cycle pos  966 + 14
     event_sched_rate = 1800 # seconds
     buffer = 960 / 8  # number of seconds in 15 minute interval divided by seconds per level
     curr_tezpay_delay_with_padding = curr_tezpay_delay + (event_sched_rate / block_len ) + buffer
@@ -50,6 +50,7 @@ def main():
     cycle = data["metadata"]["level_info"]["cycle"]
     last_cycle_processed = load_cycle_info(s3,file_name,file_path)
     print("Last cycle processed {0}, this cycle {1}".format(last_cycle_processed,cycle))
+    print("Cycle position: {0}, current tezpay delay with padding {1}".format(cycle_pos,curr_tezpay_delay_with_padding))
 
     if last_cycle_processed == str(cycle) or cycle_pos < curr_tezpay_delay_with_padding:
         return 0
