@@ -127,7 +127,7 @@ def get_payout_acct_balance(address):
 payout_address = "tz1fnU3mjTn8aH2tJ5TcnS5HnfP4wUEhjE7j"
 
 file_name = "/home/arbest/cycle_info.txt"
-#file_name = "C:\\Users\\DREWA\\Downloads\\cycle_info.txt"
+file_name = "C:\\Users\\DREWA\\Downloads\\cycle_info.txt"
 
 saved_cycle_info = load_cycle_info(file_name)
 date_fields = saved_cycle_info[1].split('-')
@@ -144,10 +144,15 @@ if delta.days >= 4:
 else:
     exit(0)
 
+action = "ready to pay"
 new_date = date.today().strftime('%Y-%m-%d')
 payment_amount = get_payment_amount(futuremost_cycle)
 payout_account_balance = get_payout_acct_balance(payout_address)
-if payout_account_balance < 10:
-    payment_amount -= payout_account_balance
-cycle_info_rec = "{0},{1},{2},{3}".format(futuremost_cycle,new_date,"ready to pay",payment_amount)
+if payout_account_balance >= payment_amount:
+    action = 'paid'
+else:
+    payment_amount = payment_amount - payout_account_balance
+
+cycle_info_rec = "{0},{1},{2},{3}".format(futuremost_cycle,new_date,action,payment_amount)
+#print(cycle_info_rec)
 save_cycle_info(file_name,cycle_info_rec)
